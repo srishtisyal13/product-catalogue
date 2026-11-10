@@ -1,0 +1,42 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Container-specific settings; these override .env.
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      TRUST_PROXY_HOPS: "1"
+    # No published port: the browser reaches the API only through nginx on :8080.
+    depends_on:
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.33
+    ports:
+      - "8025:8025" # inbox web UI
+      - "1025:1025" # SMTP, for running the API outside Docker (npm run dev)
+    restart: unless-stopped
